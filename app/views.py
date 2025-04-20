@@ -6,11 +6,12 @@ This file creates your application.
 """
 
 from app import app
-from flask import render_template, request, jsonify, send_file, send_from_directory
+from flask import render_template, request, jsonify, send_file, send_from_directory, session, redirect, url_for, flash
 from flask_wtf.csrf import generate_csrf
 from werkzeug.utils import secure_filename
-# from app.forms import
-from app.models import db
+from werkzeug.security import generate_password_hash, check_password_hash
+from app.models import db, Users, Profile, Favourite
+from flask_login import current_user, login_required, login_user, logout_user
 from datetime import datetime
 import os
 
@@ -22,6 +23,73 @@ import os
 @app.route('/')
 def index():
     return jsonify(message="This is the beginning of our API")
+
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    """Register a new user."""
+    error = None
+    if request.method == 'POST':
+        data = request.form 
+        username = data.get('username')
+        password = data.get('password')
+        name = data.get('name')
+        email = data.get('email')
+
+        if not username or not password or not name or not email:
+            error = "All fields are required"
+        elif Users.query.filter_by(username=username).first() or Users.query.filter_by(email=email).first():
+            error = "Username or email already exists"
+        else:
+            # Create a new user
+            hashed_password = generate_password_hash(password)
+            new_user = Users(username=username, password=hashed_password, name=name, email=email)
+
+            db.session.add(new_user)
+            db.session.commit()
+
+            flash("User registered successfully", "success")
+            return redirect(url_for('index'))
+
+    if error:
+        flash(error, "error")
+    return render_template('register.html', error=error)  # Placeholder for future form
+
+
+@app.route('/auth/login', methods=['GET', 'POST'])
+def login():
+    """Log in a user."""
+    error = None
+    if request.method == 'POST':
+        data = request.form  # Use form data for future compatibility
+        username = data.get('username')
+        password = data.get('password')
+
+        if not username or not password:
+            error = "Username and password are required"
+        else:
+            # Find user by username
+            user = Users.query.filter_by(username=username).first()
+            if not user or not check_password_hash(user.password, password):
+                error = "Invalid username or password"
+            else:
+                # Log in the user
+                login_user(user)
+                flash("Logged in successfully", "success")
+                return redirect(url_for('index'))
+
+    if error:
+        flash(error, "error")
+    return render_template('login.html', error=error)  # Placeholder for future form
+
+
+@app.route('/auth/logout', methods=['POST'])
+@login_required
+def logout():
+    """Log out the current user."""
+    logout_user()
+    flash("Logged out successfully", "success")
+    return redirect(url_for('index'))
 
 
 ###
