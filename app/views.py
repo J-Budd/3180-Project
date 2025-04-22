@@ -25,71 +25,65 @@ def index():
     return jsonify(message="This is the beginning of our API")
 
 
-@app.route('/register', methods=['GET', 'POST'])
-def register():
+
+@app.route('/api/register', methods=['POST'])
+def api_register():
     """Register a new user."""
-    error = None
-    if request.method == 'POST':
-        data = request.form 
-        username = data.get('username')
-        password = data.get('password')
-        name = data.get('name')
-        email = data.get('email')
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "Invalid input"}), 400
 
-        if not username or not password or not name or not email:
-            error = "All fields are required"
-        elif Users.query.filter_by(username=username).first() or Users.query.filter_by(email=email).first():
-            error = "Username or email already exists"
-        else:
-            # Create a new user
-            hashed_password = generate_password_hash(password)
-            new_user = Users(username=username, password=hashed_password, name=name, email=email)
+    username = data.get('username')
+    password = data.get('password')
+    name = data.get('name')
+    email = data.get('email')
 
-            db.session.add(new_user)
-            db.session.commit()
+    if not username or not password or not name or not email:
+        return jsonify({"error": "All fields are required"}), 400
 
-            flash("User registered successfully", "success")
-            return redirect(url_for('index'))
+    # Check if username or email already exists
+    if Users.query.filter_by(username=username).first() or Users.query.filter_by(email=email).first():
+        return jsonify({"error": "Username or email already exists"}), 400
 
-    if error:
-        flash(error, "error")
-    return render_template('register.html', error=error)  # Placeholder for future form
+    # Create a new user
+    hashed_password = generate_password_hash(password)
+    new_user = Users(username=username, password=hashed_password, name=name, email=email)
+
+    db.session.add(new_user)
+    db.session.commit()
+
+    return jsonify({"message": "User registered successfully"}), 201
 
 
-@app.route('/auth/login', methods=['GET', 'POST'])
-def login():
+@app.route('/api/auth/login', methods=['POST'])
+def api_login():
     """Log in a user."""
-    error = None
-    if request.method == 'POST':
-        data = request.form  # Use form data for future compatibility
-        username = data.get('username')
-        password = data.get('password')
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "Invalid input"}), 400
 
-        if not username or not password:
-            error = "Username and password are required"
-        else:
-            # Find user by username
-            user = Users.query.filter_by(username=username).first()
-            if not user or not check_password_hash(user.password, password):
-                error = "Invalid username or password"
-            else:
-                # Log in the user
-                login_user(user)
-                flash("Logged in successfully", "success")
-                return redirect(url_for('index'))
+    username = data.get('username')
+    password = data.get('password')
 
-    if error:
-        flash(error, "error")
-    return render_template('login.html', error=error)  # Placeholder for future form
+    if not username or not password:
+        return jsonify({"error": "Username and password are required"}), 400
+
+    # Find user by username
+    user = Users.query.filter_by(username=username).first()
+    if not user or not check_password_hash(user.password, password):
+        return jsonify({"error": "Invalid username or password"}), 401
+
+    # Log in the user
+    login_user(user)
+    return jsonify({"message": "Logged in successfully"}), 200
 
 
-@app.route('/auth/logout', methods=['POST'])
+@app.route('/api/auth/logout', methods=['POST'])
 @login_required
-def logout():
+def api_logout():
     """Log out the current user."""
     logout_user()
-    flash("Logged out successfully", "success")
-    return redirect(url_for('index'))
+    return jsonify({"message": "Logged out successfully"}), 200
 
 
 ###
