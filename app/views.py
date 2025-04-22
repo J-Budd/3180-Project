@@ -6,7 +6,13 @@ This file creates your application.
 """
 
 from app import app
-from flask import render_template, request, jsonify, send_file
+from flask import render_template, request, jsonify, send_file, send_from_directory, session, redirect, url_for, flash
+from flask_wtf.csrf import generate_csrf
+from werkzeug.utils import secure_filename
+from werkzeug.security import generate_password_hash, check_password_hash
+from app.models import db, Users, Profile, Favourite
+from flask_login import current_user, login_required, login_user, logout_user
+from datetime import datetime
 import os
 
 
@@ -17,6 +23,67 @@ import os
 @app.route('/')
 def index():
     return jsonify(message="This is the beginning of our API")
+
+
+
+@app.route('/api/register', methods=['POST'])
+def api_register():
+    """Register a new user."""
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "Invalid input"}), 400
+
+    username = data.get('username')
+    password = data.get('password')
+    name = data.get('name')
+    email = data.get('email')
+
+    if not username or not password or not name or not email:
+        return jsonify({"error": "All fields are required"}), 400
+
+    # Check if username or email already exists
+    if Users.query.filter_by(username=username).first() or Users.query.filter_by(email=email).first():
+        return jsonify({"error": "Username or email already exists"}), 400
+
+    # Create a new user
+    hashed_password = generate_password_hash(password)
+    new_user = Users(username=username, password=hashed_password, name=name, email=email)
+
+    db.session.add(new_user)
+    db.session.commit()
+
+    return jsonify({"message": "User registered successfully"}), 201
+
+
+@app.route('/api/auth/login', methods=['POST'])
+def api_login():
+    """Log in a user."""
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "Invalid input"}), 400
+
+    username = data.get('username')
+    password = data.get('password')
+
+    if not username or not password:
+        return jsonify({"error": "Username and password are required"}), 400
+
+    # Find user by username
+    user = Users.query.filter_by(username=username).first()
+    if not user or not check_password_hash(user.password, password):
+        return jsonify({"error": "Invalid username or password"}), 401
+
+    # Log in the user
+    login_user(user)
+    return jsonify({"message": "Logged in successfully"}), 200
+
+
+@app.route('/api/auth/logout', methods=['POST'])
+@login_required
+def api_logout():
+    """Log out the current user."""
+    logout_user()
+    return jsonify({"message": "Logged out successfully"}), 200
 
 
 ###
