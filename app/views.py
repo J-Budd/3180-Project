@@ -13,6 +13,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from app.models import db, Users, Profile, Favourite
 from flask_login import current_user, login_required, login_user, logout_user
 from datetime import datetime
+from sqlalchemy import func
 import os
 
 
@@ -20,11 +21,15 @@ import os
 # Routing for your application.
 ###
 
+
 @app.route('/')
 def index():
     return jsonify(message="This is the beginning of our API")
 
 
+###
+# API Routes
+###
 
 @app.route('/api/register', methods=['POST'])
 def api_register():
@@ -84,6 +89,221 @@ def api_logout():
     """Log out the current user."""
     logout_user()
     return jsonify({"message": "Logged out successfully"}), 200
+
+
+@app.route('/api/profiles', methods=['GET'])
+@login_required
+def get_profiles():
+    """Return all profiles."""
+    profiles = Profile.query.all()
+    return jsonify([{
+        "id": profile.id,
+        "user_id": profile.user_id_fk,
+        "description": profile.description,
+        "parish": profile.parish,
+        "biography": profile.biography,
+        "sex": profile.sex,
+        "race": profile.race,
+        "birth_year": profile.birth_year,
+        "height": profile.height,
+        "fav_cuisine": profile.fav_cuisine,
+        "fav_color": profile.fav_color,
+        "fav_school_subject": profile.fav_school_subject,
+        "political": profile.political,
+        "religion": profile.religion,
+        "family_oriented": profile.family_oriented
+    } for profile in profiles]), 200
+
+
+@app.route('/api/profiles', methods=['POST'])
+@login_required
+def add_profile():
+    """Add a new profile."""
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "Invalid input"}), 400
+
+    required_fields = ["description", "parish", "biography", "sex", "race", "birth_year", "height", "fav_cuisine", "fav_color", "fav_school_subject", "political", "religion", "family_oriented"]
+    if not all(field in data for field in required_fields):
+        return jsonify({"error": "All fields are required"}), 400
+
+    new_profile = Profile(
+        user_id_fk=current_user.id,
+        description=data["description"],
+        parish=data["parish"],
+        biography=data["biography"],
+        sex=data["sex"],
+        race=data["race"],
+        birth_year=data["birth_year"],
+        height=data["height"],
+        fav_cuisine=data["fav_cuisine"],
+        fav_color=data["fav_color"],
+        fav_school_subject=data["fav_school_subject"],
+        political=data["political"],
+        religion=data["religion"],
+        family_oriented=data["family_oriented"]
+    )
+
+    db.session.add(new_profile)
+    db.session.commit()
+    return jsonify({"message": "Profile added successfully"}), 201
+
+
+@app.route('/api/profiles/<int:profile_id>', methods=['GET'])
+@login_required
+def get_profile_details(profile_id):
+    """Get details of a specific profile."""
+    profile = Profile.query.get(profile_id)
+    if not profile:
+        return jsonify({"error": "Profile not found"}), 404
+
+    return jsonify({
+        "id": profile.id,
+        "user_id": profile.user_id_fk,
+        "description": profile.description,
+        "parish": profile.parish,
+        "biography": profile.biography,
+        "sex": profile.sex,
+        "race": profile.race,
+        "birth_year": profile.birth_year,
+        "height": profile.height,
+        "fav_cuisine": profile.fav_cuisine,
+        "fav_color": profile.fav_color,
+        "fav_school_subject": profile.fav_school_subject,
+        "political": profile.political,
+        "religion": profile.religion,
+        "family_oriented": profile.family_oriented
+    }), 200
+
+
+@app.route('/api/profiles/<int:user_id>/favourite', methods=['POST'])
+@login_required
+def add_to_favourites(user_id):
+    """Add a user to favourites."""
+    if user_id == current_user.id:
+        return jsonify({"error": "You cannot favourite yourself"}), 400
+
+    favourite = Favourite(user_id_fk=current_user.id, fav_user_id_fk=user_id)
+    db.session.add(favourite)
+    db.session.commit()
+    return jsonify({"message": "User added to favourites"}), 201
+
+
+@app.route('/api/profiles/matches/<int:profile_id>', methods=['GET'])
+@login_required
+def get_matches(profile_id):
+    """Get a list of profiles that match specific criteria."""
+    profile = Profile.query.get(profile_id)
+    if not profile:
+        return jsonify({"error": "Profile not found"}), 404
+
+    matches = Profile.query.filter(
+        Profile.sex == profile.sex,
+        Profile.race == profile.race,
+        Profile.parish == profile.parish,
+        Profile.id != profile.id
+    ).all()
+
+    return jsonify([{
+        "id": match.id,
+        "user_id": match.user_id_fk,
+        "description": match.description,
+        "parish": match.parish,
+        "biography": match.biography,
+        "sex": match.sex,
+        "race": match.race,
+        "birth_year": match.birth_year,
+        "height": match.height,
+        "fav_cuisine": match.fav_cuisine,
+        "fav_color": match.fav_color,
+        "fav_school_subject": match.fav_school_subject,
+        "political": match.political,
+        "religion": match.religion,
+        "family_oriented": match.family_oriented
+    } for match in matches]), 200
+
+
+@app.route('/api/search', methods=['GET'])
+@login_required
+def search_profiles():
+    """Search for profiles by name, birth year, sex, or race."""
+    name = request.args.get('name')
+    birth_year = request.args.get('birth_year')
+    sex = request.args.get('sex')
+    race = request.args.get('race')
+
+    query = Profile.query.filter(Profile.user_id_fk != current_user.id)
+    if name:
+        query = query.filter(Profile.biography.ilike(f"%{name}%"))
+    if birth_year:
+        query = query.filter(Profile.birth_year == birth_year)
+    if sex:
+        query = query.filter(Profile.sex == sex)
+    if race:
+        query = query.filter(Profile.race == race)
+
+    results = query.all()
+    return jsonify([{
+        "id": result.id,
+        "user_id": result.user_id_fk,
+        "description": result.description,
+        "parish": result.parish,
+        "biography": result.biography,
+        "sex": result.sex,
+        "race": result.race,
+        "birth_year": result.birth_year,
+        "height": result.height,
+        "fav_cuisine": result.fav_cuisine,
+        "fav_color": result.fav_color,
+        "fav_school_subject": result.fav_school_subject,
+        "political": result.political,
+        "religion": result.religion,
+        "family_oriented": result.family_oriented
+    } for result in results]), 200
+
+
+@app.route('/api/users/<int:user_id>', methods=['GET'])
+@login_required
+def get_user_details(user_id):
+    """Get details of a user."""
+    user = Users.query.get(user_id)
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    return jsonify({
+        "id": user.id,
+        "username": user.username,
+        "name": user.name,
+        "email": user.email,
+        "photo": user.photo,
+        "date_joined": user.date_joined
+    }), 200
+
+
+@app.route('/api/users/<int:user_id>/favourites', methods=['GET'])
+@login_required
+def get_user_favourites(user_id):
+    """Get users that a user has favoured."""
+    favourites = Favourite.query.filter_by(user_id_fk=user_id).all()
+    return jsonify([{
+        "id": favourite.id,
+        "fav_user_id": favourite.fav_user_id_fk
+    } for favourite in favourites]), 200
+
+
+@app.route('/api/users/favourites/<int:N>', methods=['GET'])
+@login_required
+def get_top_favoured_users(N):
+    """Get the top N favoured users."""
+    top_users = db.session.query(
+        Favourite.fav_user_id_fk,
+        func.count(Favourite.fav_user_id_fk).label('fav_count')
+    ).group_by(Favourite.fav_user_id_fk).order_by(func.count(Favourite.fav_user_id_fk).desc()).limit(N).all()
+
+    return jsonify([{
+        "user_id": user[0],
+        "fav_count": user[1]
+    } for user in top_users]), 200
 
 
 ###
