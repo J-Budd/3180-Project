@@ -5,9 +5,9 @@ Werkzeug Documentation:  https://werkzeug.palletsprojects.com/
 This file creates your application.
 """
 
+import jwt
 from app import app
 from flask import render_template, request, jsonify, send_file, send_from_directory, session, redirect, url_for, flash
-from flask_wtf.csrf import generate_csrf
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 from app.models import db, Users, Profile, Favourite
@@ -33,32 +33,42 @@ def index():
 
 @app.route('/api/register', methods=['POST'])
 def api_register():
-    """Register a new user."""
-    data = request.get_json()
-    if not data:
-        return jsonify({"error": "Invalid input"}), 400
-
-    username = data.get('username')
-    password = data.get('password')
-    name = data.get('name')
-    email = data.get('email')
+    """Register a new user with optional profile image."""
+    username = request.form.get('username')
+    password = request.form.get('password')
+    name = request.form.get('name')
+    email = request.form.get('email')
+    profile = request.files.get('profile')  # This is the uploaded file
 
     if not username or not password or not name or not email:
         return jsonify({"error": "All fields are required"}), 400
 
-    # Check if username or email already exists
+    # Check for duplicates
     if Users.query.filter_by(username=username).first() or Users.query.filter_by(email=email).first():
         return jsonify({"error": "Username or email already exists"}), 400
 
-    # Create a new user
+    # Handle file saving
+    profile_filename = None
+    if profile:
+        filename = secure_filename(profile.filename)
+        profile_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        profile.save(profile_path)
+        profile_filename = filename  # You can store this in the DB if needed
+
+    # Create user
     hashed_password = generate_password_hash(password)
-    new_user = Users(username=username, password=hashed_password, name=name, email=email)
+    new_user = Users(
+        username=username,
+        password=hashed_password,
+        name=name,
+        email=email,
+        photo=profile_filename  # Only if your model has this field
+    )
 
     db.session.add(new_user)
     db.session.commit()
 
     return jsonify({"message": "User registered successfully"}), 201
-
 
 @app.route('/api/auth/login', methods=['POST'])
 def api_login():
@@ -80,7 +90,34 @@ def api_login():
 
     # Log in the user
     login_user(user)
-    return jsonify({"message": "Logged in successfully"}), 200
+    #check if user has a complete profile as they cannot make certain requests without it
+    profile = Profile.query.filter_by(user_id_fk=user.id).first()
+    has_profile = False
+    if profile:
+        #We will list the required field to check for profile completeness
+        required_fields = [
+            profile.description,
+            profile.parish,
+            profile.biography,
+            profile.sex,
+            profile.race,
+            profile.birth_year,
+            profile.height,
+            profile.fav_cuisine,
+            profile.fav_color,
+            profile.fav_school_subject,
+            profile.political,
+            profile.religion,
+            profile.family_oriented
+        ]
+        #if none of the required fields is none or empty, then the profile is complete
+        has_profile = all(field is not None and field != "" for field in required_fields)
+    token = jwt.encode({"user_id": user.id}, app.config['SECRET_KEY'], algorithm="HS256")
+    return jsonify({"message": "Logged in successfully",
+                    "has_profile": has_profile,
+                    "user_id": user.id, #optional, but useful for the frontend to know the user id
+                    "token": token
+                    }), 200
 
 
 @app.route('/api/auth/logout', methods=['POST'])
@@ -94,13 +131,23 @@ def api_logout():
 @app.route('/api/profiles', methods=['GET'])
 @login_required
 def get_profiles():
-    """Return all profiles."""
-    profiles = Profile.query.all()
+    """Return all profiles or a limited number of the most recent ones."""
+    limit = request.args.get('limit', type=int)
+
+    query = Profile.query.order_by(Profile.id.desc())  # show most recent first
+
+    if limit:
+        profiles = query.limit(limit).all()
+    else:
+        profiles = query.all()
+
     return jsonify([{
         "id": profile.id,
         "user_id": profile.user_id_fk,
+        "name": profile.user.name,  # <-- assuming a relationship to Users exists
         "description": profile.description,
         "parish": profile.parish,
+        "photo": profile.user.photo,  # Access the user's photo here # <-- assuming a relationship to Users exists
         "biography": profile.biography,
         "sex": profile.sex,
         "race": profile.race,
@@ -119,6 +166,9 @@ def get_profiles():
 @login_required
 def add_profile():
     """Add a new profile."""
+    if not current_user.is_authenticated:
+        return jsonify({"error": "User not authenticated"}), 401
+    
     data = request.get_json()
     if not data:
         return jsonify({"error": "Invalid input"}), 400
@@ -126,6 +176,10 @@ def add_profile():
     required_fields = ["description", "parish", "biography", "sex", "race", "birth_year", "height", "fav_cuisine", "fav_color", "fav_school_subject", "political", "religion", "family_oriented"]
     if not all(field in data for field in required_fields):
         return jsonify({"error": "All fields are required"}), 400
+    
+    # Check if user already has 3 profiles
+    if Profile.query.filter_by(user_id_fk=current_user.id).count() >= 3:
+        return jsonify({'error': 'You can only have up to 3 profiles'}), 400
 
     new_profile = Profile(
         user_id_fk=current_user.id,
@@ -162,6 +216,7 @@ def get_profile_details(profile_id):
         "user_id": profile.user_id_fk,
         "description": profile.description,
         "parish": profile.parish,
+        "photo": profile.user.photo,
         "biography": profile.biography,
         "sex": profile.sex,
         "race": profile.race,
@@ -270,13 +325,35 @@ def get_user_details(user_id):
     if not user:
         return jsonify({"error": "User not found"}), 404
 
+    profiles = Profile.query.filter_by(user_id_fk=user.id).all()
+
     return jsonify({
-        "id": user.id,
-        "username": user.username,
-        "name": user.name,
-        "email": user.email,
-        "photo": user.photo,
-        "date_joined": user.date_joined
+        "user": {
+            "id": user.id,
+            "username": user.username,
+            "name": user.name,
+            "email": user.email,
+            "photo": user.photo,
+            "date_joined": user.date_joined.isoformat()
+        },
+        "profiles": [
+            {
+                "id": p.id,
+                "description": p.description,
+                "parish": p.parish,
+                "sex": p.sex,
+                "race": p.race,
+                "biography": p.biography,
+                "birth_year": p.birth_year,
+                "height": p.height,
+                "fav_cuisine": p.fav_cuisine,
+                "fav_color": p.fav_color,
+                "fav_school_subject": p.fav_school_subject,
+                "political": p.political,
+                "religion": p.religion,
+                "family_oriented": p.family_oriented
+            } for p in profiles
+        ]
     }), 200
 
 

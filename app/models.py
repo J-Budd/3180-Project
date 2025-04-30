@@ -1,9 +1,9 @@
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
+from . import db, login_manager
+from flask_login import UserMixin # Import UserMixin for user authentication
 
-db = SQLAlchemy()
-
-class Users(db.Model):
+class Users(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     password = db.Column(db.String(255), nullable=False)
@@ -11,6 +11,8 @@ class Users(db.Model):
     email = db.Column(db.String(120), unique=True, nullable=False)
     photo = db.Column(db.String(255), nullable=True)
     date_joined = db.Column(db.DateTime, default=datetime.utcnow)
+
+    
 
 
 class Profile(db.Model):
@@ -30,8 +32,16 @@ class Profile(db.Model):
     religion = db.Column(db.String(255), nullable=True)
     family_oriented = db.Column(db.Boolean, nullable=True)
 
+    
+    user = db.relationship('Users', backref='profiles')
+
+
 
 class Favourite(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id_fk = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     fav_user_id_fk = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+
+@login_manager.user_loader
+def load_user(user_id):
+    return Users.query.get(int(user_id))  # Adjust based on how you store your users
