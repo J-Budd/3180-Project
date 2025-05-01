@@ -7,7 +7,7 @@
         <input v-model="password" type="password" placeholder="Password" required />
         <input v-model="name" type="text" placeholder="Full Name" required />
         <input v-model="email" type="email" placeholder="Email" required />
-        <input type="file" @change="handleFileUpload" required />
+        <input type="file" @change="handleFileUpload" />
         <button type="submit">Register</button>
         <p class="error" v-if="error">{{ error }}</p>
       </form>
@@ -15,8 +15,9 @@
   </div>
 </template>
 
-
 <script>
+import axios from 'axios';
+
 export default {
   data() {
     return {
@@ -26,8 +27,7 @@ export default {
       email: '',
       profile: null,
       error: ''
-
-    }
+    };
   },
   methods: {
     handleFileUpload(event) {
@@ -40,27 +40,23 @@ export default {
         formData.append('password', this.password);
         formData.append('name', this.name);
         formData.append('email', this.email);
-        formData.append('profile', this.profile);  // append the file
+        if (this.profile) {
+          formData.append('profile', this.profile);
+        }
 
-        const response = await fetch('/api/register', {
+        const response = await fetch('http://localhost:5000/api/register', {
           method: 'POST',
           body: formData
         });
 
-        const data = await response.json();
-
-        if (!response.ok) {
-          this.error = data.error || 'Registration failed';
-        } else {
-          alert(data.message);
-          this.$router.push('/login'); // redirect to login after registration
-        }
+        alert(response.data.message);
+        this.$router.push('/login');
       } catch (err) {
-        this.error = 'An error occurred while registering.';
+        this.error = err.response?.data?.error || 'Registration failed';
       }
     }
   }
-}
+};
 </script>
 
 <style scoped>
