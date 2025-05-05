@@ -2,28 +2,29 @@ from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_login import LoginManager
-from backend.app.config import Config
 from flask_cors import CORS
 
+# Initialize extensions without app
 db = SQLAlchemy()
 migrate = Migrate()
 login_manager = LoginManager()
 cors = CORS()
 
-def create_app(config_class=Config):
+def create_app():
     app = Flask(__name__)
-    app.config.from_object(config_class)
     
-    # Initialize extensions
+    # Load configuration
+    from .config import Config
+    app.config.from_object(Config)
+    
+    # Initialize extensions with app
     db.init_app(app)
     migrate.init_app(app, db)
     login_manager.init_app(app)
     cors.init_app(app)
     
-    login_manager.login_view = 'api_login'
-    
-    # Register blueprints
-    from app.routes import api_bp
+    # Import views after app is created
+    from .views import api_bp
     app.register_blueprint(api_bp)
     
     return app
