@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
+import MainLayout from '../layouts/Main.vue' // layout with sidebar/topbar
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -12,9 +13,6 @@ const router = createRouter({
     {
       path: '/about',
       name: 'about',
-      // route level code-splitting
-      // this generates a separate chunk (About.[hash].js) for this route
-      // which is lazy-loaded when the route is visited.
       component: () => import('../views/AboutView.vue')
     },
     {
@@ -32,33 +30,41 @@ const router = createRouter({
       name: 'logout',
       component: () => import('../views/LogoutView.vue')
     },
+
+    // ✅ Routes wrapped in Main layout
     {
-      path: '/user-page',
-      name: 'user-page',
-      component: () => import('../views/UserPage.vue'),
-      props: true
-    },
-    {
-      path: '/users/:user_id',
-      name: 'user-profile',
-      component: () => import('../views/UserProfileView.vue'),
-      props: true
-    },
-    {
-      path: '/profiles/new',
-      name: 'new-profile',
-      component: () => import('../views/NewProfileView.vue')
-    },
-    {
-      path: '/profiles/:profile_id',
-      name: 'profile-details',
-      component: () => import('../views/ProfileDetailView.vue'),
-      props: true
-    },
-    {
-      path: '/profiles/favourites',
-      name: 'favourites',
-      component: () => import('../views/FavouritesView.vue')
+      path: '/',
+      component: MainLayout,
+      children: [
+        {
+          path: 'user-page',
+          name: 'user-page',
+          component: () => import('../views/UserPage.vue'),
+          props: true
+        },
+        {
+          path: 'users/:user_id',
+          name: 'user-profile',
+          component: () => import('../views/UserProfileView.vue'),
+          props: true
+        },
+        {
+          path: 'profiles/new',
+          name: 'new-profile',
+          component: () => import('../views/NewProfileView.vue')
+        },
+        {
+          path: 'profiles/:profile_id',
+          name: 'profile-details',
+          component: () => import('../views/ProfileDetailView.vue'),
+          props: true
+        },
+        {
+          path: 'profiles/favourites',
+          name: 'favourites',
+          component: () => import('../views/FavouritesView.vue')
+        }
+      ]
     }
   ]
 })
