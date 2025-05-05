@@ -7,7 +7,7 @@ This file creates your application.
 
 import jwt
 from app import app
-from flask import render_template, request, jsonify, send_file, send_from_directory, session, redirect, url_for, flash
+from flask import Blueprint, render_template, request, jsonify, send_file, send_from_directory, session, redirect, url_for, flash
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 from app.models import db, Users, Profile, Favourite
@@ -21,8 +21,10 @@ import os
 # Routing for your application.
 ###
 
+api_bp = Blueprint('api', __name__)
 
-@app.route('/')
+
+@api_bp.route('/')
 def index():
     return jsonify(message="This is the beginning of our API")
 
@@ -31,7 +33,7 @@ def index():
 # API Routes
 ###
 
-@app.route('/api/register', methods=['POST'])
+@api_bp.route('/api/register', methods=['POST'])
 def api_register():
     """Register a new user with optional profile image."""
     username = request.form.get('username')
@@ -70,7 +72,7 @@ def api_register():
 
     return jsonify({"message": "User registered successfully"}), 201
 
-@app.route('/api/auth/login', methods=['POST'])
+@api_bp.route('/api/auth/login', methods=['POST'])
 def api_login():
     """Log in a user."""
     data = request.get_json()
@@ -120,7 +122,7 @@ def api_login():
                     }), 200
 
 
-@app.route('/api/auth/logout', methods=['POST'])
+@api_bp.route('/api/auth/logout', methods=['POST'])
 @login_required
 def api_logout():
     """Log out the current user."""
@@ -128,7 +130,7 @@ def api_logout():
     return jsonify({"message": "Logged out successfully"}), 200
 
 
-@app.route('/api/profiles', methods=['GET'])
+@api_bp.route('/api/profiles', methods=['GET'])
 @login_required
 def get_profiles():
     """Return all profiles or a limited number of the most recent ones."""
@@ -162,7 +164,7 @@ def get_profiles():
     } for profile in profiles]), 200
 
 
-@app.route('/api/profiles', methods=['POST'])
+@api_bp.route('/api/profiles', methods=['POST'])
 @login_required
 def add_profile():
     """Add a new profile."""
@@ -203,7 +205,7 @@ def add_profile():
     return jsonify({"message": "Profile added successfully"}), 201
 
 
-@app.route('/api/profiles/<int:profile_id>', methods=['GET'])
+@api_bp.route('/api/profiles/<int:profile_id>', methods=['GET'])
 @login_required
 def get_profile_details(profile_id):
     """Get details of a specific profile."""
@@ -231,7 +233,7 @@ def get_profile_details(profile_id):
     }), 200
 
 
-@app.route('/api/profiles/<int:user_id>/favourite', methods=['POST'])
+@api_bp.route('/api/profiles/<int:user_id>/favourite', methods=['POST'])
 @login_required
 def add_to_favourites(user_id):
     """Add a user to favourites."""
@@ -244,7 +246,7 @@ def add_to_favourites(user_id):
     return jsonify({"message": "User added to favourites"}), 201
 
 
-@app.route('/api/profiles/matches/<int:profile_id>', methods=['GET'])
+@api_bp.route('/api/profiles/matches/<int:profile_id>', methods=['GET'])
 @login_required
 def get_matches(profile_id):
     """Get a list of profiles that match specific criteria."""
@@ -278,7 +280,7 @@ def get_matches(profile_id):
     } for match in matches]), 200
 
 
-@app.route('/api/search', methods=['GET'])
+@api_bp.route('/api/search', methods=['GET'])
 @login_required
 def search_profiles():
     """Search for profiles by name, birth year, sex, or race."""
@@ -317,7 +319,7 @@ def search_profiles():
     } for result in results]), 200
 
 
-@app.route('/api/users/<int:user_id>', methods=['GET'])
+@api_bp.route('/api/users/<int:user_id>', methods=['GET'])
 @login_required
 def get_user_details(user_id):
     """Get details of a user."""
@@ -357,7 +359,7 @@ def get_user_details(user_id):
     }), 200
 
 
-@app.route('/api/users/<int:user_id>/favourites', methods=['GET'])
+@api_bp.route('/api/users/<int:user_id>/favourites', methods=['GET'])
 @login_required
 def get_user_favourites(user_id):
     """Get users that a user has favoured."""
@@ -368,7 +370,7 @@ def get_user_favourites(user_id):
     } for favourite in favourites]), 200
 
 
-@app.route('/api/users/favourites/<int:N>', methods=['GET'])
+@api_bp.route('/api/users/favourites/<int:N>', methods=['GET'])
 @login_required
 def get_top_favoured_users(N):
     """Get the top N favoured users."""
@@ -402,14 +404,14 @@ def form_errors(form):
 
     return error_messages
 
-@app.route('/<file_name>.txt')
+@api_bp.route('/<file_name>.txt')
 def send_text_file(file_name):
     """Send your static text file."""
     file_dot_text = file_name + '.txt'
-    return app.send_static_file(file_dot_text)
+    return api_bp.send_static_file(file_dot_text)
 
 
-@app.after_request
+@api_bp.after_request
 def add_header(response):
     """
     Add headers to both force latest IE rendering engine or Chrome Frame,
@@ -421,7 +423,7 @@ def add_header(response):
     return response
 
 
-@app.errorhandler(404)
+@api_bp.errorhandler(404)
 def page_not_found(error):
     """Custom 404 page."""
     return render_template('404.html'), 404
