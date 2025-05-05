@@ -3,31 +3,29 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_login import LoginManager
 from .config import Config
-from flask_cors import CORS  #Allows cross-origin requests/ frontend to back-end communication
-
+from flask_cors import CORS
 
 db = SQLAlchemy()
-
-app = Flask(__name__)
-CORS(app, origins=["http://localhost:8080"]) # Enable CORS for the Flask app
-app.config.from_object(Config)
-
-
-
-db.init_app(app)
-migrate = Migrate(app, db)
-
+migrate = Migrate()  # Initialize without app first
 login_manager = LoginManager()
-login_manager.init_app(app)
-login_manager.login_view = 'api_login'  
 
+def create_app():
+    app = Flask(__name__)
+    CORS(app, origins=["http://localhost:8080"])
+    app.config.from_object(Config)
 
-from app.models import Users # Import your models here
+    db.init_app(app)
+    migrate.init_app(app, db)  # Now associate with app and db
+    login_manager.init_app(app)
+    login_manager.login_view = 'api_login'
 
-# Load user function for Flask-Login
-@login_manager.user_loader
-def load_user(user_id):
-    return Users.query.get(int(user_id))
+    from app.models import Users
 
-from app import views
-from app import models
+    @login_manager.user_loader
+    def load_user(user_id):
+        return Users.query.get(int(user_id))
+
+    from app import views
+    from app import models
+
+    return app
