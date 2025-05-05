@@ -11,11 +11,6 @@ services:
       flask db upgrade
     startCommand: gunicorn app:app
     envVars:
-    buildCommand: |
-      cd backend && pip install -r requirements.txt
-      FLASK_APP=wsgi.py flask db upgrade
-    startCommand: gunicorn --chdir backend wsgi:app
-    envVars:
       - key: DATABASE_URL
         fromDatabase:
           name: jamdate-db
